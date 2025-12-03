@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { declensions, casusInfo, type Casus, type Numerus } from '@/data/declensions';
 
 export default function OverzichtPage() {
@@ -48,10 +49,10 @@ export default function OverzichtPage() {
                 <tr className="border-b border-primary/20 text-xs opacity-70">
                   <th className="text-left py-2 px-2"></th>
                   {numeri.map((numerus) => (
-                    <>
-                      <th key={`${numerus}-uitgang`} className="text-center py-2 px-2">Uitgang</th>
-                      <th key={`${numerus}-vorm`} className="text-center py-2 px-2">Vorm</th>
-                    </>
+                    <Fragment key={numerus}>
+                      <th className="text-center py-2 px-2">Uitgang</th>
+                      <th className="text-center py-2 px-2">Vorm</th>
+                    </Fragment>
                   ))}
                 </tr>
               </thead>
@@ -68,14 +69,14 @@ export default function OverzichtPage() {
                       <span className="text-xs opacity-60 ml-2">({casusInfo[casus].afkorting})</span>
                     </td>
                     {numeri.map((numerus) => (
-                      <>
-                        <td key={`${numerus}-${casus}-uitgang`} className="text-center py-3 px-2 font-mono text-primary">
+                      <Fragment key={numerus}>
+                        <td className="text-center py-3 px-2 font-mono text-primary">
                           {decl.uitgangen[numerus][casus]}
                         </td>
-                        <td key={`${numerus}-${casus}-vorm`} className="text-center py-3 px-2 font-semibold">
+                        <td className="text-center py-3 px-2 font-semibold">
                           {decl.vormen[numerus][casus]}
                         </td>
-                      </>
+                      </Fragment>
                     ))}
                   </tr>
                 ))}
