@@ -12,36 +12,19 @@ import {
   type Conjugation,
 } from '@/data/conjugations';
 
-type QuestionType = 'vorm' | 'tijd' | 'persoon';
-
 interface Question {
-  type: QuestionType;
+  vorm: string;
   werkwoord: string;
   betekenis: string;
   conjugatie: Conjugation;
-  tempus: Tempus;
-  persona: Persona;
-  correctAnswer: string;
-  options: string[];
-}
-
-function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
+  correctTempus: Tempus;
+  correctPersona: Persona;
 }
 
 function generateQuestion(
   selectedConjugaties: string[],
   selectedTempora: Tempus[]
 ): Question {
-  const types: QuestionType[] = ['vorm', 'tijd', 'persoon'];
-  const type = types[Math.floor(Math.random() * types.length)];
-
-  // Filter conjugaties op selectie
   const availableConjugaties = conjugations.filter((c) =>
     selectedConjugaties.includes(c.id)
   );
@@ -51,83 +34,23 @@ function generateQuestion(
   const tempus = selectedTempora[Math.floor(Math.random() * selectedTempora.length)];
   const persona = personae[Math.floor(Math.random() * personae.length)];
 
-  // Gebruik altijd het voorbeeldwoord (vormen zijn hierop gebaseerd)
-  const werkwoord = conjugatie.voorbeeldwoord;
-  const betekenis = conjugatie.betekenis;
-
-  const correctForm = conjugatie.vormen[tempus][persona];
-
-  let correctAnswer: string;
-  let options: string[];
-
-  switch (type) {
-    case 'vorm':
-      correctAnswer = correctForm;
-
-      // Genereer foute opties
-      const wrongOptions = new Set<string>();
-      personae.forEach((p) => {
-        if (p !== persona) {
-          wrongOptions.add(conjugatie.vormen[tempus][p]);
-        }
-      });
-      // Voeg ook vormen van andere tijden toe
-      selectedTempora.forEach((t) => {
-        if (t !== tempus) {
-          wrongOptions.add(conjugatie.vormen[t][persona]);
-        }
-      });
-
-      options = shuffleArray([
-        correctAnswer,
-        ...shuffleArray([...wrongOptions].filter((o) => o !== correctAnswer)).slice(
-          0,
-          3
-        ),
-      ]);
-      break;
-
-    case 'tijd':
-      correctAnswer = tempusInfo[tempus].naam;
-      options = shuffleArray(selectedTempora.map((t) => tempusInfo[t].naam));
-      if (options.length > 4) {
-        options = options.slice(0, 4);
-      }
-      if (!options.includes(correctAnswer)) {
-        options[options.length - 1] = correctAnswer;
-        options = shuffleArray(options);
-      }
-      break;
-
-    case 'persoon':
-      correctAnswer = personaInfo[persona].nederlands;
-      options = shuffleArray(personae.map((p) => personaInfo[p].nederlands)).slice(
-        0,
-        4
-      );
-      if (!options.includes(correctAnswer)) {
-        options[3] = correctAnswer;
-        options = shuffleArray(options);
-      }
-      break;
-  }
+  const vorm = conjugatie.vormen[tempus][persona];
 
   return {
-    type,
-    werkwoord,
-    betekenis,
+    vorm,
+    werkwoord: conjugatie.voorbeeldwoord,
+    betekenis: conjugatie.betekenis,
     conjugatie,
-    tempus,
-    persona,
-    correctAnswer,
-    options,
+    correctTempus: tempus,
+    correctPersona: persona,
   };
 }
 
 export default function WerkwoordenQuizPage() {
   const [question, setQuestion] = useState<Question | null>(null);
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
+  const [selectedTempus, setSelectedTempus] = useState<Tempus | null>(null);
+  const [hasChecked, setHasChecked] = useState(false);
   const [score, setScore] = useState({ correct: 0, total: 0 });
   const [selectedConjugaties, setSelectedConjugaties] = useState<string[]>(
     conjugations.map((c) => c.id)
@@ -138,18 +61,21 @@ export default function WerkwoordenQuizPage() {
   const generateNewQuestion = useCallback(() => {
     const newQuestion = generateQuestion(selectedConjugaties, selectedTempora);
     setQuestion(newQuestion);
-    setSelectedAnswer(null);
-    setIsCorrect(null);
+    setSelectedPersona(null);
+    setSelectedTempus(null);
+    setHasChecked(false);
   }, [selectedConjugaties, selectedTempora]);
 
-  const handleAnswer = (answer: string) => {
-    if (selectedAnswer !== null || !question) return;
+  const checkAnswer = () => {
+    if (!question || !selectedPersona || !selectedTempus) return;
 
-    setSelectedAnswer(answer);
-    const correct = answer === question.correctAnswer;
-    setIsCorrect(correct);
+    const isCorrect =
+      selectedPersona === question.correctPersona &&
+      selectedTempus === question.correctTempus;
+
+    setHasChecked(true);
     setScore((prev) => ({
-      correct: prev.correct + (correct ? 1 : 0),
+      correct: prev.correct + (isCorrect ? 1 : 0),
       total: prev.total + 1,
     }));
   };
@@ -174,40 +100,9 @@ export default function WerkwoordenQuizPage() {
     });
   };
 
-  const getQuestionText = () => {
-    if (!question) return '';
-
-    switch (question.type) {
-      case 'vorm':
-        return (
-          <>
-            Wat is de <strong>{tempusInfo[question.tempus].naam.toLowerCase()}</strong>,{' '}
-            <strong>{personaInfo[question.persona].nederlands}</strong>-vorm van{' '}
-            <strong>{question.werkwoord}</strong> ({question.betekenis})?
-          </>
-        );
-      case 'tijd':
-        return (
-          <>
-            Welke tijd is <strong>{question.conjugatie.vormen[question.tempus][question.persona]}</strong>?
-            <br />
-            <span className="text-sm opacity-70">
-              ({question.conjugatie.voorbeeldwoord}, {question.conjugatie.naam})
-            </span>
-          </>
-        );
-      case 'persoon':
-        return (
-          <>
-            Welke persoon is <strong>{question.conjugatie.vormen[question.tempus][question.persona]}</strong>?
-            <br />
-            <span className="text-sm opacity-70">
-              ({question.conjugatie.voorbeeldwoord}, {tempusInfo[question.tempus].naam})
-            </span>
-          </>
-        );
-    }
-  };
+  const isCorrectPersona = hasChecked && selectedPersona === question?.correctPersona;
+  const isCorrectTempus = hasChecked && selectedTempus === question?.correctTempus;
+  const isFullyCorrect = isCorrectPersona && isCorrectTempus;
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
@@ -216,7 +111,7 @@ export default function WerkwoordenQuizPage() {
           Quiz Werkwoorden
         </h1>
         <p className="text-lg opacity-80">
-          Test je kennis van de Latijnse werkwoordstijden!
+          Herken de persoon én de tijd van elke werkwoordsvorm!
         </p>
       </section>
 
@@ -267,17 +162,17 @@ export default function WerkwoordenQuizPage() {
           <div>
             <h3 className="font-bold mb-3">Selecteer tijden:</h3>
             <div className="flex flex-wrap gap-2">
-              {tempora.map((tempus) => (
+              {tempora.map((t) => (
                 <button
-                  key={tempus}
-                  onClick={() => toggleTempus(tempus)}
+                  key={t}
+                  onClick={() => toggleTempus(t)}
                   className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                    selectedTempora.includes(tempus)
+                    selectedTempora.includes(t)
                       ? 'bg-secondary text-white'
                       : 'bg-secondary/10 text-secondary'
                   }`}
                 >
-                  {tempusInfo[tempus].naam}
+                  {tempusInfo[t].naam}
                 </button>
               ))}
             </div>
@@ -298,71 +193,133 @@ export default function WerkwoordenQuizPage() {
         </div>
       ) : (
         <div className="bg-white/50 dark:bg-white/5 rounded-2xl p-6 space-y-6">
-          {/* Vraag type badge */}
+          {/* Conjugatie badge */}
           <div className="flex justify-between items-center">
             <span className="text-xs font-mono bg-primary/10 text-primary px-3 py-1 rounded-full">
-              {question.type === 'vorm'
-                ? 'Vorm invullen'
-                : question.type === 'tijd'
-                ? 'Tijd herkennen'
-                : 'Persoon herkennen'}
+              {question.conjugatie.naam}
             </span>
-            <span className="text-xs opacity-60">{question.conjugatie.naam}</span>
+            <span className="text-xs opacity-60">
+              {question.werkwoord} ({question.betekenis})
+            </span>
           </div>
 
-          {/* Vraag */}
-          <p className="text-xl text-center py-4">{getQuestionText()}</p>
-
-          {/* Antwoord opties */}
-          <div className="grid grid-cols-2 gap-3">
-            {question.options.map((option, index) => {
-              let buttonClass =
-                'p-4 rounded-xl text-center font-semibold transition-all border-2 ';
-
-              if (selectedAnswer === null) {
-                buttonClass +=
-                  'border-primary/30 hover:border-primary hover:bg-primary/10 cursor-pointer';
-              } else if (option === question.correctAnswer) {
-                buttonClass += 'border-success bg-success/20 text-success';
-              } else if (option === selectedAnswer) {
-                buttonClass += 'border-error bg-error/20 text-error';
-              } else {
-                buttonClass += 'border-primary/10 opacity-50';
-              }
-
-              return (
-                <button
-                  key={index}
-                  onClick={() => handleAnswer(option)}
-                  disabled={selectedAnswer !== null}
-                  className={buttonClass}
-                >
-                  {option}
-                </button>
-              );
-            })}
+          {/* De werkwoordsvorm */}
+          <div className="text-center py-6">
+            <p className="text-sm opacity-60 mb-2">Welke persoon en tijd is:</p>
+            <p className="text-4xl font-bold text-primary">{question.vorm}</p>
           </div>
+
+          {/* Persoon selectie */}
+          <div>
+            <h3 className="font-semibold mb-3 text-sm">Persoon:</h3>
+            <div className="grid grid-cols-3 gap-2">
+              {personae.map((p) => {
+                let buttonClass = 'p-3 rounded-lg text-center text-sm font-medium transition-all border-2 ';
+
+                if (!hasChecked) {
+                  buttonClass += selectedPersona === p
+                    ? 'border-primary bg-primary text-white'
+                    : 'border-primary/30 hover:border-primary hover:bg-primary/10 cursor-pointer';
+                } else {
+                  if (p === question.correctPersona) {
+                    buttonClass += 'border-success bg-success/20 text-success';
+                  } else if (p === selectedPersona) {
+                    buttonClass += 'border-error bg-error/20 text-error';
+                  } else {
+                    buttonClass += 'border-primary/10 opacity-40';
+                  }
+                }
+
+                return (
+                  <button
+                    key={p}
+                    onClick={() => !hasChecked && setSelectedPersona(p)}
+                    disabled={hasChecked}
+                    className={buttonClass}
+                  >
+                    {personaInfo[p].nederlands}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Tijd selectie */}
+          <div>
+            <h3 className="font-semibold mb-3 text-sm">Tijd:</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {selectedTempora.map((t) => {
+                let buttonClass = 'p-3 rounded-lg text-center text-sm font-medium transition-all border-2 ';
+
+                if (!hasChecked) {
+                  buttonClass += selectedTempus === t
+                    ? 'border-secondary bg-secondary text-white'
+                    : 'border-secondary/30 hover:border-secondary hover:bg-secondary/10 cursor-pointer';
+                } else {
+                  if (t === question.correctTempus) {
+                    buttonClass += 'border-success bg-success/20 text-success';
+                  } else if (t === selectedTempus) {
+                    buttonClass += 'border-error bg-error/20 text-error';
+                  } else {
+                    buttonClass += 'border-secondary/10 opacity-40';
+                  }
+                }
+
+                return (
+                  <button
+                    key={t}
+                    onClick={() => !hasChecked && setSelectedTempus(t)}
+                    disabled={hasChecked}
+                    className={buttonClass}
+                  >
+                    {tempusInfo[t].naam}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Controleer knop */}
+          {!hasChecked && (
+            <button
+              onClick={checkAnswer}
+              disabled={!selectedPersona || !selectedTempus}
+              className={`w-full py-4 rounded-xl font-semibold transition-colors ${
+                selectedPersona && selectedTempus
+                  ? 'bg-primary text-white hover:bg-primary/90'
+                  : 'bg-primary/30 text-white/50 cursor-not-allowed'
+              }`}
+            >
+              Controleer antwoord
+            </button>
+          )}
 
           {/* Feedback */}
-          {selectedAnswer !== null && (
+          {hasChecked && (
             <div
               className={`text-center p-4 rounded-xl ${
-                isCorrect ? 'bg-success/20 text-success' : 'bg-error/20 text-error'
+                isFullyCorrect ? 'bg-success/20 text-success' : 'bg-error/20 text-error'
               }`}
             >
               <p className="font-bold text-lg mb-2">
-                {isCorrect ? 'Goed zo!' : 'Helaas, fout!'}
+                {isFullyCorrect
+                  ? 'Helemaal goed!'
+                  : isCorrectPersona || isCorrectTempus
+                  ? 'Half goed!'
+                  : 'Helaas, fout!'}
               </p>
-              {!isCorrect && (
-                <p className="text-sm opacity-80">
-                  Het juiste antwoord was: <strong>{question.correctAnswer}</strong>
-                </p>
-              )}
+              <p className="text-sm opacity-80">
+                Het juiste antwoord was:{' '}
+                <strong>
+                  {personaInfo[question.correctPersona].nederlands} +{' '}
+                  {tempusInfo[question.correctTempus].naam}
+                </strong>
+              </p>
             </div>
           )}
 
           {/* Volgende vraag knop */}
-          {selectedAnswer !== null && (
+          {hasChecked && (
             <button
               onClick={generateNewQuestion}
               className="w-full py-4 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 transition-colors"
